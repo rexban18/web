@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Python Runner</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #ddd;
+            --primary-color: #007bff;
+            --danger-color: #dc3545;
+            --console-bg: #1e1e1e;
+            --console-text: #00ff00;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+
+        section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        section:last-child {
+            border-bottom: none;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: #555;
+        }
+
+        /* Form Elements */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        input[type="file"], select, button {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 1rem;
+        }
+
+        input[type="file"] {
+            background: #fafafa;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .controls-row > div {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        /* Console Box */
+        #console-container {
+            background-color: var(--console-bg);
+            color: var(--console-text);
+            padding: 15px;
+            border-radius: 4px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            border: 1px solid #333;
+        }
+
+        /* Status & Feedback */
+        #status-message {
+            font-size: 0.9rem;
+            margin-top: -5px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .controls-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Python Script Runner</h1>
+
+    <!-- Upload Section -->
+    <section>
+        <h2>1. Upload Script</h2>
+        <div class="form-group">
+            <input type="file" id="fileInput" accept=".py">
+            <button id="uploadBtn" class="btn-primary">Upload Script</button>
+            <span id="uploadStatus" style="font-size: 0.85rem; color: #666;">No file uploaded</span>
+        </div>
+    </section>
+
+    <!-- Configuration Section -->
+    <section>
+        <h2>2. Configuration</h2>
+        <div class="form-group">
+            <label for="timeSelect">Max Runtime:</label>
+            <select id="timeSelect">
+                <option value="1">1 Hour</option>
+                <option value="6">6 Hours</option>
+                <option value="12">12 Hours</option>
+                <option value="24">1 Day</option>
+                <option value="48">2 Days</option>
+                <option value="72">3 Days</option>
+            </select>
+        </div>
+    </section>
+
+    <!-- Controls Section -->
+    <section>
+        <h2>3. Controls</h2>
+        <div class="controls-row">
+            <button id="startBtn" class="btn-primary" disabled>Run Script</button>
+            <button id="stopBtn" class="btn-danger" disabled>Stop Script</button>
+        </div>
+        <div id="status-message"></div>
+    </section>
+
+    <!-- Console Section -->
+    <section style="flex-grow: 1;">
+        <h2>4. Live Console</h2>
+        <div id="console-container">Waiting for logs...</div>
+    </section>
+</div>
+
+<script>
+    // State
+    let currentScriptId = null;
+    let isRunning = false;
+    let logInterval = null;
+
+    // DOM Elements
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const consoleBox = document.getElementById('console-container');
+    const statusMsg = document.getElementById('status-message');
+    const timeSelect = document.getElementById('timeSelect');
+
+    // 1. Upload Functionality
+    uploadBtn.addEventListener('click', async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+            showStatus('Please select a .py file first.', 'error');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading...';
+
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                currentScriptId = data.id;
+                uploadStatus.textContent = `Uploaded: ${data.filename}`;
+                uploadStatus.className = 'success';
+                startBtn.disabled = false;
+                showStatus('Script ready to run.', 'success');
+            } else {
+                showStatus(data.error || 'Upload failed', 'error');
+            }
+        } catch (error) {
+            showStatus('Network error during upload.', 'error');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload Script';
+        }
+    });
+
+    // 2. Start Functionality
+    startBtn.addEventListener('click', async () => {
+        if (!currentScriptId) return;
+
+        const duration = timeSelect.value;
+        
+        // UI Update
+        isRunning = true;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        fileInput.disabled = true;
+        uploadBtn.disabled = true;
+        showStatus('Script starting...', 'success');
+        
+        // Clear previous logs
+        consoleBox.textContent = '';
+
+        try {
+            const response = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: currentScriptId, duration: duration })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                showStatus(`Script started (Max time: ${duration}h). Check console below.`, 'success');
+                startPolling();
+            } else {
+                showStatus(data.error || 'Failed to start script', 'error');
+                resetUI();
+            }
+        } catch (error) {
+            showStatus('Error sending start command.', 'error');
+            resetUI();
+        }
+    });
+
+    // 3. Stop Functionality
+    stopBtn.addEventListener('click', async () => {
+        try {
+            await fetch('/api/stop', { method: 'POST' });
+            showStatus('Stop command sent.', 'error');
+        } catch (error) {
+            showStatus('Error sending stop command.', 'error');
+        }
+        // We assume it stops. The polling will catch up.
+    });
+
+    // 4. Log Polling
+    function startPolling() {
+        if (logInterval) clearInterval(logInterval);
+        
+        logInterval = setInterval(async () => {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+                
+                // Only update DOM if content changed to save rendering
+                if (data.logs !== consoleBox.textContent) {
+                    consoleBox.textContent = data.logs;
+                    // Auto scroll to bottom
+                    consoleBox.scrollTop = consoleBox.scrollHeight;
+                }
+
+                // Simple check to see if logs mention stopping
+                if (data.logs.includes("Script stopped") || data.logs.includes("Process finished")) {
+                    stopRunningState();
+                }
+
+            } catch (error) {
+                console.error("Log fetch error", error);
+            }
+        }, 2000); // Poll every 2 seconds
+    }
+
+    function stopRunningState() {
+        isRunning = false;
+        clearInterval(logInterval);
+        resetUI();
+        showStatus('Script finished or stopped.', 'success');
+    }
+
+    function resetUI() {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        fileInput.disabled = false;
+        uploadBtn.disabled = false;
+    }
+
+    function showStatus(msg, type) {
+        statusMsg.textContent = msg;
+        statusMsg.className = type;
+    }
+</script>
+
+</body>
+</html>
